@@ -1,0 +1,67 @@
+name: jungle_wagering
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jw_postgres
+    environment:
+      POSTGRES_USER: jungle
+      POSTGRES_PASSWORD: jungle_local
+      POSTGRES_DB: jungle
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=200"
+    ports:
+      - "15432:5432"
+    volumes:
+      - jw_pgdata:/var/lib/postgresql/data
+      - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jungle -d jungle"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 1g
+    cpus: 1.0
+    networks:
+      - jw_net
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: jw_localstack
+    environment:
+      SERVICES: sqs
+      DEBUG: "0"
+      AWS_DEFAULT_REGION: us-east-1
+      PERSISTENCE: "0"
+      LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT: "1"
+    ports:
+      - "14566:4566"
+    volumes:
+      - jw_localstack:/var/lib/localstack
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/10-queues.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 1g
+    cpus: 1.0
+    networks:
+      - jw_net
+    restart: unless-stopped
+
+networks:
+  jw_net:
+    name: jw_net
+    driver: bridge
+
+volumes:
+  jw_pgdata:
+    name: jw_pgdata
+  jw_localstack:
+    name: jw_localstack
